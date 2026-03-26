@@ -70,10 +70,11 @@ def retrieve_policy(country, visa_type):
 # Generate Response (HuggingFace)
 # -----------------------------
 def generate_response(prompt):
-    API_URL = "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.2"
+    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
 
     headers = {
-        "Authorization": f"Bearer {HF_TOKEN}"
+        "Authorization": f"Bearer {HF_TOKEN}",
+        "Content-Type": "application/json"
     }
 
     try:
@@ -83,30 +84,31 @@ def generate_response(prompt):
             json={
                 "inputs": prompt,
                 "parameters": {
-                    "temperature": 0.2,
-                    "max_new_tokens": 300
+                    "temperature": 0.3,
+                    "max_new_tokens": 400,
+                    "return_full_text": False
                 }
             }
         )
 
-        # 🔍 Check status
+        # ✅ Debug info (very important)
         if response.status_code != 200:
-            return f"API Error: {response.text}"
+            return f"API ERROR ({response.status_code}): {response.text}"
 
-        # 🔍 Try parsing JSON safely
         try:
             result = response.json()
         except Exception:
-            return f"Invalid response from model: {response.text}"
+            return f"INVALID JSON RESPONSE:\n{response.text}"
 
-        # 🔍 Extract safely
+        # ✅ Correct extraction
         if isinstance(result, list) and "generated_text" in result[0]:
             return result[0]["generated_text"]
 
+        # fallback
         return str(result)
 
     except Exception as e:
-        return f"Error connecting to AI model: {str(e)}"
+        return f"ERROR CONNECTING TO MODEL: {str(e)}"
 # -----------------------------
 # Log Decision
 # -----------------------------

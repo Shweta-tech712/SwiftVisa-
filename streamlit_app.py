@@ -325,7 +325,7 @@ def page_input_form():
             return
 
         prompt = f"""
-You are a strict visa evaluation AI.
+You are a visa evaluation AI.
 
 Follow EXACT format:
 
@@ -340,18 +340,18 @@ INCOME_SCORE: 0-100
 EXPERIENCE_SCORE: 0-100
 
 MISSING_QUALIFICATIONS:
-- at least one point
+- point 1
+- point 2
 
 ACTIONABLE_SUGGESTIONS:
-- at least one point
+- point 1
+- point 2
 
 DOCUMENT_CHECKLIST:
-- at least one point
+- point 1
+- point 2
 
-IMPORTANT:
-- Always include bullet points (-)
-- Do NOT write "None"
-- Do NOT skip any section
+DO NOT SKIP ANY SECTION.
 
 User Profile:
 Age: {age}
