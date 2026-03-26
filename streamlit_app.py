@@ -2,7 +2,7 @@ import streamlit as st
 import re
 import json
 import pandas as pd
-from local_eligibility_agent import retrieve_policy, generate_response, log_decision
+from eligibility_agent import retrieve_policy, generate_eligibility as generate_response
 
 # -------------------------------------------------
 # Page Config & State Init
@@ -379,11 +379,7 @@ Policy Context:
             "prompt": prompt
         }
 
-        log_decision(user_data, decision, confidence_value, confidence_level)
-        st.session_state.evaluation_done = True
-        st.session_state.page = "Eligibility Result"
-        st.rerun()
-
+       
 # -------------------------------------------------
 # Page 2: Eligibility Result
 # -------------------------------------------------
