@@ -1,8 +1,9 @@
+streamlit
 langchain
+langchain-community
 sentence-transformers
 faiss-cpu
-streamlit
 requests
-python-dotenv
 pandas
-requests
+python-dotenv
+openai
