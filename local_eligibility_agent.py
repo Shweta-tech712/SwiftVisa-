@@ -70,8 +70,7 @@ def retrieve_policy(country, visa_type):
 # Generate Response (HuggingFace)
 # -----------------------------
 def generate_response(prompt):
-    API_URL = "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2"
-
+    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
     headers = {
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
@@ -82,13 +81,11 @@ def generate_response(prompt):
             API_URL,
             headers=headers,
             json={
-                "inputs": prompt,
-                "parameters": {
-                    "temperature": 0.3,
-                    "max_new_tokens": 400,
-                    "return_full_text": False
-                }
-            }
+            "inputs": prompt,
+            "parameters": {
+            "max_length": 512
+        }
+}
         )
 
         # ✅ Debug info (very important)

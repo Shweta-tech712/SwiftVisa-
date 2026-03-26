@@ -367,6 +367,8 @@ Policy Context:
 """
         with st.spinner("🧠 Analyzing applicant profile..."):
             result = generate_response(prompt)
+            st.write("DEBUG OUTPUT:")
+            st.write(result)
 
         # Parse Text Response via Regex Fallback
         decision_match = re.search(r"DECISION:\s*(.*)", result, re.IGNORECASE)
