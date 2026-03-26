@@ -1,5 +1,6 @@
 import json
 import re
+import os
 from datetime import datetime
 import requests
 import streamlit as st
@@ -7,8 +8,11 @@ import streamlit as st
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
 
+# -----------------------------
+# CONFIG
+# -----------------------------
 VECTOR_STORE_PATH = "visa_vector_store"
-
+HF_TOKEN = os.getenv("HF_TOKEN")
 
 # -----------------------------
 # Load Vector Store
@@ -24,7 +28,6 @@ def load_vector_store():
         embeddings,
         allow_dangerous_deserialization=True
     )
-
 
 # -----------------------------
 # Retrieve Policy
@@ -63,26 +66,34 @@ def retrieve_policy(country, visa_type):
     context = "\n\n".join([doc.page_content for doc in filtered_docs])
     return context, source_links
 
-
 # -----------------------------
-# Generate Response (LM Studio)
+# Generate Response (HuggingFace)
 # -----------------------------
 def generate_response(prompt):
+    API_URL = "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.2"
+
+    headers = {
+        "Authorization": f"Bearer {HF_TOKEN}"
+    }
+
     response = requests.post(
-        "http://localhost:1234/v1/chat/completions",
+        API_URL,
+        headers=headers,
         json={
-            "model": "phi-3-mini-4k-instruct",
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "temperature": 0.2,
-            "max_tokens": 300
+            "inputs": prompt,
+            "parameters": {
+                "temperature": 0.2,
+                "max_new_tokens": 300
+            }
         }
     )
 
     result = response.json()
-    return result["choices"][0]["message"]["content"]
 
+    try:
+        return result[0]["generated_text"]
+    except:
+        return "Error generating response from AI model."
 
 # -----------------------------
 # Log Decision
@@ -111,9 +122,8 @@ def log_decision(user_data, decision, confidence_value, confidence_level):
     with open("decision_logs.json", "w") as file:
         json.dump(logs, file, indent=4)
 
-
 # -----------------------------
-# MAIN PROGRAM
+# MAIN (CLI MODE - optional)
 # -----------------------------
 if __name__ == "__main__":
 
@@ -142,7 +152,7 @@ if __name__ == "__main__":
     context, source_links = retrieve_policy(country, visa_type)
 
     if not context:
-        print("No matching policy found for given country and visa type.")
+        print("No matching policy found.")
     else:
 
         prompt = f"""
@@ -150,14 +160,11 @@ You are an immigration eligibility assessment system.
 
 Based ONLY on the provided policy context, evaluate the applicant.
 
-Return output strictly as valid JSON matching this schema:
-{{
-  "decision": "Eligible", "Possibly Eligible", or "Not Eligible",
-  "overall_confidence": <0 to 1 float>,
-  "reasoning": "<Write all your explanations and reasoning here as a string>"
-}}
+Return output in this format:
 
-CRITICAL: The output MUST be 100% parseable JSON. Do NOT include ANY unquoted text or explanations anywhere except inside the "reasoning" string field.
+Decision: Eligible / Possibly Eligible / Not Eligible
+Confidence: 0 to 1
+Reasoning: Explain clearly
 
 User Profile:
 Age: {age}
@@ -170,54 +177,9 @@ Visa Type: {visa_type}
 
 Policy Context:
 {context}
-
-Respond ONLY with valid JSON. Do not include markdown formatting like ```json or any other text.
 """
-
-        print("Generating eligibility decision...\n")
 
         result = generate_response(prompt)
 
-        print("=== ELIGIBILITY RESULT ===\n")
+        print("\n=== RESULT ===\n")
         print(result)
-
-        # -----------------------------
-        # Extract Decision + Confidence
-        # -----------------------------
-        try:
-            clean_result = result.strip()
-            # Extract only the JSON block if the model added conversational filler
-            json_match = re.search(r'\{.*\}', clean_result, re.DOTALL)
-            if json_match:
-                clean_result = json_match.group(0)
-                
-            parsed_json = json.loads(clean_result)
-            decision = parsed_json.get("decision", "Unknown")
-            confidence_value = float(parsed_json.get("overall_confidence", 0.5))
-        except json.JSONDecodeError:
-            print("Failed to parse JSON response. Using fallback values.")
-            decision = "Unknown"
-            confidence_value = 0.5
-
-        # -----------------------------
-        # Convert Confidence Level
-        # -----------------------------
-        if confidence_value >= 0.75:
-            confidence_level = "High"
-        elif confidence_value >= 0.4:
-            confidence_level = "Medium"
-        else:
-            confidence_level = "Low"
-
-        print(f"\nConfidence Level: {confidence_level}")
-
-        print("\nBased on Official Source(s):")
-        for link in source_links:
-            print(link)
-
-        # -----------------------------
-        # Log Decision
-        # -----------------------------
-        log_decision(user_data, decision, confidence_value, confidence_level)
-
-        print("\nDecision logged successfully.")
