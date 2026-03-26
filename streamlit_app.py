@@ -2,7 +2,37 @@ import streamlit as st
 import re
 import json
 import pandas as pd
-from eligibility_agent import retrieve_policy, generate_eligibility as generate_response
+from local_eligibility_agent import retrieve_policy, generate_response
+
+# -------------------------------------------------
+# Utility Functions
+# -------------------------------------------------
+def log_decision(user_data, decision, confidence_value, confidence_level):
+    """Log the eligibility decision to a JSON file for analytics."""
+    try:
+        import os
+        from datetime import datetime
+        
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "user_profile": user_data,
+            "decision": decision,
+            "confidence_value": confidence_value,
+            "confidence_level": confidence_level
+        }
+        
+        if os.path.exists("decision_logs.json"):
+            with open("decision_logs.json", "r") as f:
+                logs = json.load(f)
+        else:
+            logs = []
+        
+        logs.append(log_entry)
+        
+        with open("decision_logs.json", "w") as f:
+            json.dump(logs, f, indent=2)
+    except Exception as e:
+        pass  # Silently fail to not interrupt the user experience
 
 # -------------------------------------------------
 # Page Config & State Init
@@ -379,7 +409,11 @@ Policy Context:
             "prompt": prompt
         }
 
-       
+        log_decision(user_data, decision, confidence_value, confidence_level)
+        st.session_state.evaluation_done = True
+        st.session_state.page = "Eligibility Result"
+        st.rerun()
+
 # -------------------------------------------------
 # Page 2: Eligibility Result
 # -------------------------------------------------
