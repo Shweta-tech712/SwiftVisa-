@@ -325,27 +325,33 @@ def page_input_form():
             return
 
         prompt = f"""
-You are a Senior AI Visa Advisor. Evaluate this applicant profile against the provided policy context.
-DO NOT OUTPUT JSON. Output your response STRICTLY in the following text format:
+You are a strict visa evaluation AI.
 
-DECISION: <Eligible | Possibly Eligible | Not Eligible>
-CONFIDENCE: <0 to 1 float>
+Follow EXACT format:
+
+DECISION: Eligible / Possibly Eligible / Not Eligible
+CONFIDENCE: number between 0 and 1
 
 REASONING:
-<Write all explanations here>
+Explain clearly
 
-EDUCATION_SCORE: <integer 0-100>
-INCOME_SCORE: <integer 0-100>
-EXPERIENCE_SCORE: <integer 0-100>
+EDUCATION_SCORE: 0-100
+INCOME_SCORE: 0-100
+EXPERIENCE_SCORE: 0-100
 
 MISSING_QUALIFICATIONS:
-- <item 1 or None>
+- at least one point
 
 ACTIONABLE_SUGGESTIONS:
-- <item 1 or None>
+- at least one point
 
 DOCUMENT_CHECKLIST:
-- <item 1 or None>
+- at least one point
+
+IMPORTANT:
+- Always include bullet points (-)
+- Do NOT write "None"
+- Do NOT skip any section
 
 User Profile:
 Age: {age}
@@ -370,31 +376,42 @@ Policy Context:
         inc_match = re.search(r"INCOME_SCORE:\s*([0-9]+)", result, re.IGNORECASE)
         exp_match = re.search(r"EXPERIENCE_SCORE:\s*([0-9]+)", result, re.IGNORECASE)
 
-        def extract_list(header, text):
-            pattern = rf"{header}:\s*(.*?)(?=\n[A-Z_]+:|$)"
-            match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-            if match:
-                items = re.findall(r"-\s*(.+)", match.group(1))
-                return [i.strip() for i in items if i.strip().lower() != 'none']
-            return []
+def extract_list(header, text):
+    pattern = rf"{header}[:\s]*(.*?)(?=\n[A-Z_ ]+:|$)"
+    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
 
-        decision = decision_match.group(1).strip() if decision_match else "Decision Unknown"
-        confidence_value = float(confidence_match.group(1)) if confidence_match else 0.0
+    if match:
+        block = match.group(1)
+
+        # Handle -, •, or numbered lists
+        items = re.findall(r"(?:-|\•|\d+\.)\s*(.+)", block)
+
+        # If no bullets found, fallback to lines
+        if not items:
+            lines = [line.strip() for line in block.split("\n") if line.strip()]
+            return [l for l in lines if l.lower() != "none"]
+
+        return [i.strip() for i in items if i.strip().lower() != "none"]
+
+    return []
+
+    decision = decision_match.group(1).strip() if decision_match else "Decision Unknown"
+    confidence_value = float(confidence_match.group(1)) if confidence_match else 0.0
         
-        sub_scores = {
+    sub_scores = {
             "education_score": int(ed_match.group(1)) if ed_match else 0,
             "income_score": int(inc_match.group(1)) if inc_match else 0,
             "experience_score": int(exp_match.group(1)) if exp_match else 0
         }
 
-        missing_quals = extract_list("MISSING_QUALIFICATIONS", result)
-        suggestions = extract_list("ACTIONABLE_SUGGESTIONS", result)
-        checklist = extract_list("DOCUMENT_CHECKLIST", result)
+    missing_quals = extract_list("MISSING_QUALIFICATIONS", result)
+    suggestions = extract_list("ACTIONABLE_SUGGESTIONS", result)
+    checklist = extract_list("DOCUMENT_CHECKLIST", result)
 
-        confidence_level = "High" if confidence_value >= 0.75 else "Medium" if confidence_value >= 0.4 else "Low"
+    confidence_level = "High" if confidence_value >= 0.75 else "Medium" if confidence_value >= 0.4 else "Low"
 
         # Bundle extracted results
-        st.session_state.result_data = {
+    st.session_state.result_data = {
             "decision": decision,
             "confidence_value": confidence_value,
             "confidence_level": confidence_level,
@@ -409,10 +426,10 @@ Policy Context:
             "prompt": prompt
         }
 
-        log_decision(user_data, decision, confidence_value, confidence_level)
-        st.session_state.evaluation_done = True
-        st.session_state.page = "Eligibility Result"
-        st.rerun()
+    log_decision(user_data, decision, confidence_value, confidence_level)
+    st.session_state.evaluation_done = True
+    st.session_state.page = "Eligibility Result"
+    st.rerun()
 
 # -------------------------------------------------
 # Page 2: Eligibility Result
