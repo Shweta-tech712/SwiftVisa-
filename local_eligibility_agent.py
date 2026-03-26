@@ -76,25 +76,37 @@ def generate_response(prompt):
         "Authorization": f"Bearer {HF_TOKEN}"
     }
 
-    response = requests.post(
-        API_URL,
-        headers=headers,
-        json={
-            "inputs": prompt,
-            "parameters": {
-                "temperature": 0.2,
-                "max_new_tokens": 300
-            }
-        }
-    )
-
-    result = response.json()
-
     try:
-        return result[0]["generated_text"]
-    except:
-        return "Error generating response from AI model."
+        response = requests.post(
+            API_URL,
+            headers=headers,
+            json={
+                "inputs": prompt,
+                "parameters": {
+                    "temperature": 0.2,
+                    "max_new_tokens": 300
+                }
+            }
+        )
 
+        # 🔍 Check status
+        if response.status_code != 200:
+            return f"API Error: {response.text}"
+
+        # 🔍 Try parsing JSON safely
+        try:
+            result = response.json()
+        except Exception:
+            return f"Invalid response from model: {response.text}"
+
+        # 🔍 Extract safely
+        if isinstance(result, list) and "generated_text" in result[0]:
+            return result[0]["generated_text"]
+
+        return str(result)
+
+    except Exception as e:
+        return f"Error connecting to AI model: {str(e)}"
 # -----------------------------
 # Log Decision
 # -----------------------------
