@@ -67,13 +67,12 @@ def retrieve_policy(country, visa_type):
     return context, source_links
 
 # -----------------------------
-# Generate Response (HuggingFace)
+# Generate Response (Local LM Studio)
 # -----------------------------
 def generate_response(prompt):
-    API_URL = "https://router.huggingface.co/hf-inference/models/microsoft/Phi-3-mini-4k-instruct"
+    API_URL = "http://localhost:1234/v1/chat/completions"
 
     headers = {
-        "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
     }
 
@@ -82,8 +81,13 @@ def generate_response(prompt):
             API_URL,
             headers=headers,
             json={
-                "inputs": prompt,
-                "parameters": {"max_new_tokens": 512, "return_full_text": False}
+                "messages": [
+                    {"role": "system", "content": "You are a helpful immigration eligibility assessment system."},
+                    {"role": "user", "content": prompt}
+                ],
+                "temperature": 0.3,
+                "max_tokens": 1000,
+                "stream": False
             }
         )
 
@@ -94,8 +98,8 @@ def generate_response(prompt):
         data = response.json()
 
         # ✅ Safe extraction
-        if isinstance(data, list) and "generated_text" in data[0]:
-            return data[0]["generated_text"]
+        if "choices" in data and len(data["choices"]) > 0:
+            return data["choices"][0]["message"]["content"]
 
         return str(data)
 
