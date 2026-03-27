@@ -70,7 +70,8 @@ def retrieve_policy(country, visa_type):
 # Generate Response (HuggingFace)
 # -----------------------------
 def generate_response(prompt):
-    API_URL = "https://api-inference.huggingface.co/models/google/flan-t5-large"
+    API_URL = "https://router.huggingface.co/hf-inference/models/google/flan-t5-large"
+
     headers = {
         "Authorization": f"Bearer {HF_TOKEN}",
         "Content-Type": "application/json"
@@ -81,21 +82,27 @@ def generate_response(prompt):
             API_URL,
             headers=headers,
             json={
-            "inputs": prompt,
-            "parameters": {
-            "max_length": 512
-        }
-}
+                "inputs": prompt
+            }
         )
 
-        # ✅ Debug info (very important)
+        # Debug
         if response.status_code != 200:
             return f"API ERROR ({response.status_code}): {response.text}"
 
         try:
             result = response.json()
         except Exception:
-            return f"INVALID JSON RESPONSE:\n{response.text}"
+            return f"INVALID RESPONSE: {response.text}"
+
+        # flan-t5 output format
+        if isinstance(result, list) and "generated_text" in result[0]:
+            return result[0]["generated_text"]
+
+        return str(result)
+
+    except Exception as e:
+        return f"ERROR: {str(e)}"
 
         # ✅ Correct extraction
         if isinstance(result, list) and "generated_text" in result[0]:
