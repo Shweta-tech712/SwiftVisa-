@@ -1,46 +1,18 @@
 import streamlit as st
 import re
 import json
-import pandas as pd
+import os
+from datetime import datetime
 from local_eligibility_agent import retrieve_policy, generate_response
-
-# -------------------------------------------------
-# Utility Functions
-# -------------------------------------------------
-def log_decision(user_data, decision, confidence_value, confidence_level):
-    """Log the eligibility decision to a JSON file for analytics."""
-    try:
-        import os
-        from datetime import datetime
-        
-        log_entry = {
-            "timestamp": datetime.now().isoformat(),
-            "user_profile": user_data,
-            "decision": decision,
-            "confidence_value": confidence_value,
-            "confidence_level": confidence_level
-        }
-        
-        if os.path.exists("decision_logs.json"):
-            with open("decision_logs.json", "r") as f:
-                logs = json.load(f)
-        else:
-            logs = []
-        
-        logs.append(log_entry)
-        
-        with open("decision_logs.json", "w") as f:
-            json.dump(logs, f, indent=2)
-    except Exception as e:
-        pass  # Silently fail to not interrupt the user experience
 
 # -------------------------------------------------
 # Page Config & State Init
 # -------------------------------------------------
 st.set_page_config(
-    page_title="SwiftVisa - AI Eligibility Agent",
-    page_icon="🌍",
-    layout="wide"
+    page_title="SwiftVisa - Premium AI System",
+    page_icon="✨",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
 
 def init_session_state():
@@ -50,562 +22,643 @@ def init_session_state():
         st.session_state.evaluation_done = False
     if "result_data" not in st.session_state:
         st.session_state.result_data = {}
+    if "dev_mode" not in st.session_state:
+        st.session_state.dev_mode = False
 
 init_session_state()
 
 # -------------------------------------------------
-# Styling (Professional Black & Gold Theme)
+# Utility Functions
+# -------------------------------------------------
+def log_decision(user_data, decision, confidence_value, confidence_level):
+    try:
+        log_entry = {
+            "timestamp": datetime.now().isoformat(),
+            "user_profile": user_data,
+            "decision": decision,
+            "confidence_value": confidence_value,
+            "confidence_level": confidence_level
+        }
+        logs = []
+        if os.path.exists("decision_logs.json"):
+            with open("decision_logs.json", "r") as f:
+                logs = json.load(f)
+        logs.append(log_entry)
+        with open("decision_logs.json", "w") as f:
+            json.dump(logs, f, indent=2)
+    except Exception:
+        pass
+
+def extract_section(header, text):
+    pattern = rf"(?:\d+\.\s*)?{header}[:\s]*(.*?)(?=\n\s*(?:\d+\.)?\s*[A-Z_ ]+:|$)"
+    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
+    return match.group(1).strip() if match else ""
+
+def extract_list(header, text):
+    block = extract_section(header, text)
+    if block:
+        items = re.findall(r"(?:-|\•|\d+\.)\s*(.+)", block)
+        if not items:
+            lines = [line.strip() for line in block.split("\n") if line.strip()]
+            return [l for l in lines if l.lower() != "none"]
+        return [i.strip() for i in items if i.strip().lower() != "none"]
+    return []
+
+def extract_subfield(section_text, field_name):
+    pattern = rf"-\s*{field_name}[:\s]*(.*?)(?=\n-\s*[A-Za-z]|$)"
+    match = re.search(pattern, section_text, re.DOTALL | re.IGNORECASE)
+    return match.group(1).strip() if match else "Not explicitly detailed."
+
+# -------------------------------------------------
+# Premium Theming (Glassmorphism & Navbar Core)
 # -------------------------------------------------
 st.markdown("""
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
 
+/* Obliterate Sidebar entirely */
+[data-testid="stSidebar"] { display: none !important; }
+[data-testid="collapsedControl"] { display: none !important; }
+button[title="View fullscreen"] { display: none !important; }
+[data-testid="stHeader"] { display: none !important; }
+div[data-testid="stDecoration"] { display: none !important; }
+#MainMenu { visibility: hidden !important; }
+footer { visibility: hidden !important; }
+
+/* Push content to edge removing native header gap */
+.block-container { padding-top: 0 !important; }
+
+/* Background Base */
 .stApp {
-    background-color: #000000;
+    background-color: #050505;
+    background-image: radial-gradient(circle at 10% 20%, rgba(138, 43, 226, 0.15) 0%, transparent 40%),
+                      radial-gradient(circle at 90% 80%, rgba(0, 191, 255, 0.15) 0%, transparent 40%);
+    background-attachment: fixed;
     color: #E2E8F0;
     font-family: 'Inter', sans-serif;
 }
 
-/* Headers */
-h1, h2, h3 { 
-    color: #D4AF37 !important; 
-    font-weight: 600; 
+/* Base Headings */
+h1, h2, h3, h4 { color: #FFFFFF !important; font-weight: 700; margin-top:0; }
+h1 { font-size: 3rem !important; background: -webkit-linear-gradient(45deg, #F9D05F, #D4AF37); -webkit-background-clip: text; -webkit-text-fill-color: transparent; }
+p, li { color: #A0AEC0; font-size: 1rem; line-height: 1.6; }
+.subtitle { font-size: 1.2rem; color: #8A9CA8; margin-bottom: 2rem; font-weight: 300; }
+
+/* -------------------------------------
+   SAAS TOP NAVBAR INJECTION 
+-------------------------------------- */
+[data-testid="stMainBlockContainer"] [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type {
+    position: sticky;
+    top: 0;
+    z-index: 9999;
+    background: rgba(5, 5, 5, 0.85);
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+    border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+    padding: 1.5rem 2rem 0.5rem 2rem;
+    margin-left: -3rem;
+    margin-right: -3rem;
+    margin-bottom: 2rem;
+    align-items: center; /* Vertically align items */
 }
-h1 { font-size: 2.5rem !important; }
 
-/* Subtitle and standard text */
-p, .subtitle { color: #A0AEC0; }
-.subtitle { font-size: 1.1rem; margin-bottom: 2rem; }
-
-/* Input Labels */
-label {
-    color: #D4AF37 !important;
+/* Nav Link overrides - Strip buttons to pristine text logic */
+[data-testid="stMainBlockContainer"] [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type button {
+    background: transparent !important;
+    border: none !important;
+    box-shadow: none !important;
+    color: #E0E0E0 !important;
     font-weight: 500 !important;
+    font-size: 1.1rem !important;
+    padding: 0 !important;
+    height: auto !important;
+    min-height: 0 !important;
+    transition: color 0.3s ease, text-shadow 0.3s ease !important;
+}
+[data-testid="stMainBlockContainer"] [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type button p {
+    margin: 0 !important;
+    padding: 0 !important;
+}
+[data-testid="stMainBlockContainer"] [data-testid="stVerticalBlock"] > [data-testid="stHorizontalBlock"]:first-of-type button:hover {
+    color: #D4AF37 !important;
+    text-shadow: 0 0 12px rgba(212,175,55,0.4) !important;
+    transform: none !important;
 }
 
-/* Input Fields */
-.stTextInput input,
-.stNumberInput input,
-.stSelectbox > div > div {
-    background-color: #111111 !important;
+/* Isolated Static HTML Blocks */
+.glass-card {
+    background: rgba(20, 20, 20, 0.5);
+    backdrop-filter: blur(12px) !important;
+    -webkit-backdrop-filter: blur(12px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 16px;
+    padding: 1.5rem;
+    margin-bottom: 1.5rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
+    transition: transform 0.3s ease, border-color 0.3s ease, box-shadow 0.3s ease;
+}
+.glass-card:hover {
+    transform: translateY(-4px);
+    border-color: rgba(212, 175, 55, 0.4);
+    box-shadow: 0 12px 40px rgba(212, 175, 55, 0.1);
+}
+
+/* Base form interactions */
+[data-testid="stForm"] {
+    background: rgba(15, 15, 15, 0.6) !important;
+    backdrop-filter: blur(15px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.08) !important;
+    border-radius: 16px;
+    padding: 3rem 2.5rem;
+    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.5);
+}
+[data-testid="stForm"] h4 { color: #D4AF37 !important; margin-top: 15px; margin-bottom: 10px; }
+[data-testid="stForm"] hr { border-color: rgba(255,255,255,0.1); margin: 20px 0; }
+
+label { color: #D4AF37 !important; font-weight: 500 !important; font-size: 0.95rem !important; }
+
+/* Responsive Input Resets */
+[data-testid="stTextInput"] input, 
+[data-testid="stNumberInput"] input, 
+[data-testid="stSelectbox"] > div > div {
+    background-color: rgba(5,5,5,0.8) !important;
     color: white !important;
-    border: 1px solid #333333 !important;
+    border: 1px solid rgba(255,255,255,0.2) !important;
     border-radius: 8px !important;
     transition: all 0.3s ease;
 }
+[data-testid="stSelectbox"] div[data-baseweb="select"] * { color: white !important; }
 
-.stTextInput input:focus,
-.stNumberInput input:focus,
-.stSelectbox > div > div:focus {
+[data-testid="stTextInput"] input:focus, 
+[data-testid="stNumberInput"] input:focus, 
+[data-testid="stSelectbox"] > div > div:focus-within {
     border-color: #D4AF37 !important;
-    box-shadow: 0 0 0 1px #D4AF37 !important;
+    box-shadow: 0 0 10px rgba(212, 175, 55, 0.3) !important;
 }
+ul[role="listbox"] { background-color: #1A1A1A !important; }
+ul[role="listbox"] li { color: #FFFFFF !important; }
 
-/* Form Container */
-[data-testid="stForm"] {
-    border: 1px solid #333333 !important;
-    border-radius: 12px;
-    padding: 2.5rem;
-    background: #0A0A0A;
-    box-shadow: 0 8px 32px 0 rgba(0, 0, 0, 0.4);
-}
-
-/* Gradient Button */
-div.stButton { margin-top: 1rem; }
-.stButton > button {
-    background: linear-gradient(135deg, #D4AF37 0%, #AA8A2E 100%);
-    color: #000000 !important;
+/* Core Animated Button */
+/* This ensures non-navbar buttons look bold and clear (like form submit) */
+div[data-testid="stMainBlockContainer"] > div[data-testid="stVerticalBlock"] > div:not(:first-child) div.stButton > button {
+    background: linear-gradient(135deg, #111 0%, #000 100%);
+    color: #D4AF37 !important;
+    border: 1px solid #D4AF37;
     border-radius: 8px;
     height: 50px;
     width: 100%;
     font-weight: 600;
     font-size: 1.1rem;
-    border: none;
-    box-shadow: 0 4px 14px 0 rgba(212, 175, 55, 0.2);
-    transition: all 0.3s ease;
+    box-shadow: 0 4px 15px rgba(212, 175, 55, 0.1);
+    transition: all 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
 }
-.stButton > button:hover {
-    transform: translateY(-2px);
-    box-shadow: 0 6px 20px rgba(212, 175, 55, 0.4);
-    background: linear-gradient(135deg, #F9D05F 0%, #D4AF37 100%);
-}
-
-/* Specific Sidebar Button Overrides */
-[data-testid="stSidebar"] .stButton > button {
-    background: #111111;
-    color: #E2E8F0 !important;
-    border: 1px solid #333333;
-    box-shadow: none;
-    height: 45px;
-    justify-content: flex-start;
-    padding-left: 1rem;
-}
-[data-testid="stSidebar"] .stButton > button:hover {
-    background: #1A1A1A;
-    color: #D4AF37 !important;
-    border-color: #D4AF37;
-    transform: none;
-}
-/* Active Sidebar Button Mock */
-.active-nav-btn {
-    background: #1A1A1A !important;
-    color: #D4AF37 !important;
-    border-left: 4px solid #D4AF37 !important;
+div[data-testid="stMainBlockContainer"] > div[data-testid="stVerticalBlock"] > div:not(:first-child) div.stButton > button:hover {
+    transform: translateY(-3px) scale(1.02);
+    box-shadow: 0 10px 25px rgba(212, 175, 55, 0.3);
+    background: linear-gradient(135deg, #D4AF37 0%, #B89620 100%);
+    color: #000 !important;
+    border-color: transparent;
 }
 
-/* Cards */
-.custom-card {
-    background-color: #0A0A0A;
-    border: 1px solid #333333;
-    border-radius: 12px;
-    padding: 1.5rem;
-    margin-bottom: 1rem;
-    box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+/* Specific Glowing Badges for Results */
+.glow-badge-eligible { text-align: center; padding: 2rem; border-radius: 16px; background: rgba(76, 175, 80, 0.05); border: 1px solid rgba(76, 175, 80, 0.5); box-shadow: 0 0 30px rgba(76, 175, 80, 0.3); }
+.glow-badge-ineligible { text-align: center; padding: 2rem; border-radius: 16px; background: rgba(244, 67, 54, 0.05); border: 1px solid rgba(244, 67, 54, 0.5); box-shadow: 0 0 30px rgba(244, 67, 54, 0.3); }
+.glow-badge-warning { text-align: center; padding: 2rem; border-radius: 16px; background: rgba(255, 152, 0, 0.05); border: 1px solid rgba(255, 152, 0, 0.5); box-shadow: 0 0 30px rgba(255, 152, 0, 0.3); }
+
+/* Animations */
+@keyframes fadeInSlide {
+    from { opacity: 0; transform: translateY(20px); }
+    to { opacity: 1; transform: translateY(0); }
+}
+.fade-in-section {
+    animation: fadeInSlide 0.8s cubic-bezier(0.2, 0.8, 0.2, 1) forwards;
 }
 
-/* Metric text */
-[data-testid="stMetricValue"] { color: #D4AF37; }
-
-/* HR */
-hr { border-color: #333333; }
+/* glowing checklist selector */
+div[data-testid="stVerticalBlockBorderWrapper"]:has(div.checklist-marker) {
+    box-shadow: 0 0 30px rgba(212, 175, 55, 0.25) !important;
+    border: 1px solid #D4AF37 !important;
+    background: rgba(20,20,20,0.85) !important;
+}
 </style>
 """, unsafe_allow_html=True)
 
 # -------------------------------------------------
-# Navigation Component
+# Top Sticky Navbar UI
 # -------------------------------------------------
-def sidebar_navigation():
-    st.sidebar.title("🌍 SwiftVisa")
-    st.sidebar.markdown('<div style="color:#A0AEC0; margin-bottom: 20px;">AI Visa Screening System</div>', unsafe_allow_html=True)
+def top_navbar():
+    current = st.session_state.page
     
-    st.sidebar.markdown("### 🧭 Navigation")
+    # st.columns structure to align correctly with padding logic.
+    nav_cols = st.columns([6, 1, 1.5, 1.2, 1.2])
     
-    # Custom navigation buttons
-    if st.sidebar.button("🏠 Home", use_container_width=True):
-        st.session_state.page = "Home"
-        st.rerun()
+    with nav_cols[0]:
+        st.markdown('<p style="font-size:1.6rem; font-weight:700; margin:0; padding-top:4px; line-height:1; letter-spacing: -0.5px; background: -webkit-linear-gradient(45deg, #F9D05F, #D4AF37); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">SwiftVisa AI</p>', unsafe_allow_html=True)
+        
+    def nav_link(col, label, target_page):
+        with col:
+            st.markdown('<div style="text-align: center;">', unsafe_allow_html=True)
+            if st.button(label, use_container_width=True):
+                # Ensure validation tracking
+                if target_page == "Master Result" and not st.session_state.get('evaluation_done', False):
+                    st.session_state.page = "Input Form"
+                else:
+                    st.session_state.page = target_page
+                st.rerun()
+            
+            # Active Indicator UI Gold Line
+            if current == target_page:
+                st.markdown('<div style="height:2px; background:#D4AF37; width:60%; max-width:80px; margin: 6px auto 0 auto; box-shadow:0 0 10px rgba(212,175,55,0.8);"></div>', unsafe_allow_html=True)
+            st.markdown('</div>', unsafe_allow_html=True)
 
-    if st.sidebar.button("📝 User Input Form", use_container_width=True):
-        st.session_state.page = "Input Form"
-        st.rerun()
-        
-    if st.sidebar.button("📊 Eligibility Result", disabled=not st.session_state.evaluation_done, use_container_width=True):
-        st.session_state.page = "Eligibility Result"
-        st.rerun()
-        
-    if st.sidebar.button("🧠 Detailed Reasoning", disabled=not st.session_state.evaluation_done, use_container_width=True):
-        st.session_state.page = "Detailed Reasoning"
-        st.rerun()
-        
-    if st.sidebar.button("🤖 AI Visa Assistant", use_container_width=True):
-        st.session_state.page = "AI Assistant"
-        st.rerun()
+    nav_link(nav_cols[1], "Home", "Home")
+    nav_link(nav_cols[2], "New Evaluation", "Input Form")
+    nav_link(nav_cols[3], "Dashboard", "Master Result")
+    nav_link(nav_cols[4], "AI Assistant", "AI Assistant")
 
-    st.sidebar.markdown("---")
-    st.sidebar.markdown("### ⚙️ Tech Stack")
-    st.sidebar.markdown("🎨 Streamlit<br>🐍 Python<br>🗄️ FAISS<br>🧠 Phi-3", unsafe_allow_html=True)
-    st.sidebar.markdown("---")
-    st.session_state.dev_mode = st.sidebar.toggle("🔍 Developer / Pro Mode", value=st.session_state.get("dev_mode", False))
-    st.sidebar.caption("V1.0.0 | **SwiftVisa AI System** 🚀")
 
 # -------------------------------------------------
-# Page 0: Home / Introduction
+# Page Views
 # -------------------------------------------------
 def page_home():
-    st.title("🌍 Dashboard & Overview")
-    st.markdown('<div class="subtitle">AI-Based Visa Eligibility Screening Agent & Analytics</div>', unsafe_allow_html=True)
+    st.markdown('<h1 style="text-align: center;">Visa Screening Reimagined.</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle" style="text-align: center;">Advanced AI semantic retrieval replacing the guesswork.</div>', unsafe_allow_html=True)
     
-    # --- Analytics Dashboard ---
-    try:
-        import os
-        if os.path.exists("decision_logs.json"):
-            with open("decision_logs.json", "r") as f:
-                logs = json.load(f)
+    colA, colB, colC = st.columns([1,2,1])
+    with colB:
+        st.markdown("<br>", unsafe_allow_html=True)
+        if st.button("🚀 Begin Evaluation Setup", use_container_width=True):
+            st.session_state.page = "Input Form"
+            st.rerun()
             
-            if logs:
-                total = len(logs)
-                eligible_count = sum(1 for log in logs if "not eligible" not in log.get("decision", "").lower() and "eligible" in log.get("decision", "").lower())
-                acceptance_rate = (eligible_count / total * 100) if total > 0 else 0
-                
-                from collections import Counter
-                countries = [log.get("user_profile", {}).get("country", "Unknown").title() for log in logs]
-                top_country = Counter(countries).most_common(1)[0][0] if countries else "N/A"
-                
-                col1, col2, col3 = st.columns(3)
-                col1.markdown(f'<div class="custom-card" style="text-align:center; padding: 1rem;"><h3 style="margin-top:0; font-size: 1.1rem;">Total Assessed</h3><h2 style="color:#D4AF37; margin:0; font-size: 2rem;">{total}</h2></div>', unsafe_allow_html=True)
-                col2.markdown(f'<div class="custom-card" style="text-align:center; padding: 1rem;"><h3 style="margin-top:0; font-size: 1.1rem;">Acceptance Rate</h3><h2 style="color:#4CAF50; margin:0; font-size: 2rem;">{acceptance_rate:.1f}%</h2></div>', unsafe_allow_html=True)
-                col3.markdown(f'<div class="custom-card" style="text-align:center; padding: 1rem;"><h3 style="margin-top:0; font-size: 1.1rem;">Top Destination</h3><h2 style="color:#D4AF37; margin:0; font-size: 2rem;">{top_country}</h2></div>', unsafe_allow_html=True)
-    except Exception as e:
-        pass
-
-    st.markdown("""
-    <div class="custom-card">
-        <h3 style="margin-top: 0;">Project Overview</h3>
-        <p>SwiftVisa automates visa eligibility assessment by extracting official immigration policies, structuring them into a searchable knowledge base, retrieving relevant policy sections using semantic search, and generating eligibility decisions using an LLM.</p>
-        <p>Unlike rule-based systems, SwiftVisa performs context-aware reasoning grounded in real policy documents, acting as an AI visa officer providing policy-grounded decisions, transparent reasoning, and fast eligibility insights.</p>
-    </div>
-    """, unsafe_allow_html=True)
+    st.markdown("<br><br>", unsafe_allow_html=True)
     
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown("""
-        <div class="custom-card">
-            <h3 style="margin-top: 0;">Key Features 🌟</h3>
-            <ul style="color: #A0AEC0; font-size: 1.05rem; line-height: 1.6;">
-                <li>Policy-grounded decision making</li>
-                <li>Metadata-based semantic retrieval</li>
-                <li>Confidence scoring system</li>
-                <li>Fully local AI system (no API dependency)</li>
-                <li>Scalable RAG architecture</li>
-                <li>Decision logging system</li>
-            </ul>
-        </div>
-        """, unsafe_allow_html=True)
-        
-    with col2:
-        st.markdown("""
-        <div class="custom-card">
-            <h3 style="margin-top: 0;">Supported Countries 🌎</h3>
-            <p style="color: #A0AEC0;">USA, Canada, United Kingdom, Germany, France, Ireland, Netherlands, Australia, New Zealand, Sweden, Singapore, UAE</p>
-            <hr/>
-            <h3 style="margin-top: 0;">Tech Stack ⚙️</h3>
-            <p style="color: #A0AEC0;">
-            <strong>Core:</strong> Python, LangChain, FAISS<br>
-            <strong>AI:</strong> HuggingFace Embeddings, Phi-3 Mini<br>
-            <strong>UI/Server:</strong> Streamlit, LM Studio
-            </p>
-        </div>
-        """, unsafe_allow_html=True)
+    c1, c2, c3 = st.columns(3)
+    c1.markdown("""<div class="glass-card" style="text-align: center;"><p style="font-size:2.5rem; margin-bottom:0;">⚡</p><h3 style="font-size:1.3rem;">Lightning Fast</h3><p>Real-time eligibility via vector retrieval.</p></div>""", unsafe_allow_html=True)
+    c2.markdown("""<div class="glass-card" style="text-align: center;"><p style="font-size:2.5rem; margin-bottom:0;">🏛️</p><h3 style="font-size:1.3rem;">Policy Grounded</h3><p>Direct database mapping for accurate truths.</p></div>""", unsafe_allow_html=True)
+    c3.markdown("""<div class="glass-card" style="text-align: center;"><p style="font-size:2.5rem; margin-bottom:0;">🧠</p><h3 style="font-size:1.3rem;">AI Reasoning</h3><p>Actionable extraction for immediate profile improvements.</p></div>""", unsafe_allow_html=True)
 
-    st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🚀 Start Eligibility Assessment", use_container_width=True):
-        st.session_state.page = "Input Form"
-        st.rerun()
 
-# -------------------------------------------------
-# Page 1: Input Form
-# -------------------------------------------------
 def page_input_form():
-    st.title("📝 User Input Form")
-    st.markdown('<div class="subtitle">Please provide the applicant details to evaluate their visa eligibility securely.</div>', unsafe_allow_html=True)
+    st.title("User Profile Setup")
+    st.markdown('<div class="subtitle">Securely enter the primary applicant details below.</div>', unsafe_allow_html=True)
     
     with st.form("eligibility_form"):
-        col1, col2 = st.columns(2, gap="large")
+        st.markdown("#### 1. Personal Information", unsafe_allow_html=True)
+        colP1, colP2, colP3 = st.columns(3, gap="medium")
+        with colP1:
+            full_name = st.text_input("👤 Full Name", placeholder="e.g. John Doe")
+        with colP2:
+            age = st.number_input("📅 Age", min_value=16, max_value=80, step=1)
+        with colP3:
+            nationality = st.text_input("🌍 Nationality", placeholder="e.g. Indian")
 
-        with col1:
-            age = st.number_input("👤 Age", min_value=16, max_value=70, step=1)
-            nationality = st.text_input("🌎 Nationality")
-            education = st.selectbox("🎓 Education Level", ["High School", "Diploma", "Bachelor's Degree", "Master's Degree", "PhD"])
+        st.markdown("<hr>", unsafe_allow_html=True)
 
-        with col2:
-            employment = st.text_input("💼 Employment Status")
-            income = st.text_input("💵 Annual Income (e.g. 60000 USD)")
-            country = st.selectbox("✈️ Destination Country", ["usa","canada","united kingdom","germany","australia","france","ireland","netherlands","sweden","new zealand","singapore","united arab emirates"])
-            visa_type = st.selectbox("📜 Visa Type", ["student visa", "skilled worker", "employment visa", "eu blue card"])
+        st.markdown("#### 2. Education Details", unsafe_allow_html=True)
+        colE1, colE2 = st.columns(2, gap="medium")
+        with colE1:
+            education = st.selectbox("🎓 Highest Education Level", ["High School", "Diploma", "Bachelor's Degree", "Master's Degree", "PhD"])
+        with colE2:
+            field_study = st.text_input("📚 Field of Study", placeholder="e.g. Computer Science")
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        st.markdown("#### 3. Employment Details", unsafe_allow_html=True)
+        colW1, colW2 = st.columns(2, gap="medium")
+        with colW1:
+            employment = st.selectbox("💼 Employment Status", ["Employed", "Self-Employed", "Student", "Unemployed"])
+        with colW2:
+            experience = st.number_input("⏳ Years of Experience", min_value=0, max_value=50, step=1)
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        st.markdown("#### 4. Financial & Visa Information", unsafe_allow_html=True)
+        colV1, colV2, colV3 = st.columns(3, gap="medium")
+        with colV1:
+            income = st.text_input("💰 Annual Income", placeholder="e.g. 60000 USD")
+        with colV2:
+            country = st.selectbox("✈️ Destination Country", ["USA","Canada","United Kingdom","Germany","Australia","France","Ireland","Netherlands","Sweden","New Zealand","Singapore","United Arab Emirates"])
+        with colV3:
+            visa_type = st.selectbox("📜 Visa Type", ["Student Visa", "Skilled Worker", "Employment Visa", "EU Blue Card"])
+
+        st.markdown("<hr>", unsafe_allow_html=True)
+
+        st.markdown("#### 5. Pre-Evaluation Confirmation", unsafe_allow_html=True)
+        cb1 = st.checkbox("I confirm that the provided information is accurate")
+        cb2 = st.checkbox("I agree to AI-based eligibility modeling extraction")
+        cb3 = st.checkbox("I understand this is a preliminary non-legal assessment")
 
         st.markdown("<br>", unsafe_allow_html=True)
-        submit = st.form_submit_button("🚀 Evaluate Eligibility")
+        submit = st.form_submit_button("Generate AI Master Report ➔")
         
     if submit:
-        if not nationality or not employment or not income:
-            st.warning("⚠️ All fields are required.")
+        if not (cb1 and cb2 and cb3):
+            st.error("⚠️ Requirements Missing: You must manually check all confirmation boxes.")
+            return
+
+        if not full_name or not nationality or not field_study or not income:
+            st.error("⚠️ Invalid Form: All text fields are strictly required.")
             return
 
         user_data = {
-            "age": age, "nationality": nationality, "education": education,
-            "employment": employment, "income": income,
-            "country": country.lower(), "visa_type": visa_type.lower()
+            "full_name": full_name, "age": age, "nationality": nationality, 
+            "education": education, "field_study": field_study,
+            "employment": employment, "experience": experience,
+            "income": income, "country": country.lower(), "visa_type": visa_type.lower()
         }
 
-        with st.spinner("⏳ Retrieving official policy documents..."):
+        with st.spinner("⏳ Vectorizing profile directly against policy databases..."):
             context, source_links = retrieve_policy(user_data["country"], user_data["visa_type"])
 
         if not context:
-            st.error("❌ No matching policy found in the database. Please try another combination.")
+            st.error("❌ Vector Sync Error: No matching official policy found under this tier layout.")
             return
 
         prompt = f"""
-You are a visa evaluation AI.
+You are a professional immigration eligibility officer.
 
-Follow EXACT format:
+Your task is to evaluate a visa applicant strictly based on the provided policy context. 
+Do NOT assume any missing information. Base all reasoning only on the given data.
 
-DECISION: Eligible / Possibly Eligible / Not Eligible
-CONFIDENCE: number between 0 and 1
-
-REASONING:
-Explain clearly
-
-EDUCATION_SCORE: 0-100
-INCOME_SCORE: 0-100
-EXPERIENCE_SCORE: 0-100
-
-MISSING_QUALIFICATIONS:
-- point 1
-- point 2
-
-ACTIONABLE_SUGGESTIONS:
-- point 1
-- point 2
-
-DOCUMENT_CHECKLIST:
-- point 1
-- point 2
-
-DO NOT SKIP ANY SECTION.
-
-User Profile:
+---------------------------------------
+APPLICANT DETAILS:
+Name: {full_name}
 Age: {age}
 Nationality: {nationality}
 Education: {education}
-Employment: {employment}
+Field of Study: {field_study}
+Employment: {employment} ({experience} years of experience)
 Income: {income}
 Country: {country}
 Visa Type: {visa_type}
+---------------------------------------
 
-Policy Context:
+POLICY CONTEXT:
 {context}
+
+---------------------------------------
+OUTPUT FORMAT (STRICT):
+---------------------------------------
+
+1. FINAL DECISION:
+<Eligible / Possibly Eligible / Not Eligible>
+<Provide a 1-line justification>
+
+2. CONFIDENCE SCORE:
+<Provide a score between 0 and 1>
+<Explain clearly why this confidence level is assigned>
+
+3. APPLICANT PROFILE SUMMARY:
+- Age: {age}
+- Education: {education} in {field_study}
+- Employment: {employment} (Experience: {experience} years)
+- Income: {income}
+- Country: {country}
+- Visa Type: {visa_type}
+
+4. ELIGIBILITY BREAKDOWN:
+
+- Education Assessment:
+Evaluate if the degree meets visa requirements.
+
+- Employment Assessment:
+Check if the job role aligns with visa criteria.
+
+- Income Assessment:
+Compare income with minimum threshold.
+
+- Policy Match:
+Explain how the applicant aligns with official visa rules.
+
+5. REQUIREMENTS MET:
+- List all satisfied conditions
+
+6. REQUIREMENTS NOT MET:
+- List missing or unclear requirements
+- If none, write "None"
+
+7. RISK FACTORS:
+- Highlight uncertainties or borderline conditions
+
+8. ACTIONABLE SUGGESTIONS:
+- Provide clear next steps to improve eligibility
+
+9. REQUIRED DOCUMENTS:
+- List all necessary documents based on this case
+
+10. FINAL CONCLUSION:
+Provide a professional 2–3 line summary of the applicant’s eligibility.
 """
-        with st.spinner("🧠 Analyzing applicant profile..."):
+        with st.spinner(f"🧠 Computing Master Reasoning Tree for {full_name}..."):
             result = generate_response(prompt)
-            st.write("DEBUG OUTPUT:")
-            st.write(result)
 
-        # Parse Text Response via Regex Fallback
-        decision_match = re.search(r"DECISION:\s*(.*)", result, re.IGNORECASE)
-        confidence_match = re.search(r"CONFIDENCE:\s*([0-9.]+)", result, re.IGNORECASE)
+        decision_raw = extract_section("FINAL DECISION", result)
+        if "not eligible" in decision_raw.lower(): decision = "Not Eligible"
+        elif "possibly eligible" in decision_raw.lower(): decision = "Possibly Eligible"
+        else: decision = "Eligible"
         
-        ed_match = re.search(r"EDUCATION_SCORE:\s*([0-9]+)", result, re.IGNORECASE)
-        inc_match = re.search(r"INCOME_SCORE:\s*([0-9]+)", result, re.IGNORECASE)
-        exp_match = re.search(r"EXPERIENCE_SCORE:\s*([0-9]+)", result, re.IGNORECASE)
+        conf_match = re.search(r"([0-9.]+)", extract_section("CONFIDENCE SCORE", result))
+        try: confidence_value = float(conf_match.group(1)) if conf_match else 0.5
+        except ValueError: confidence_value = 0.5
 
-def extract_list(header, text):
-    pattern = rf"{header}[:\s]*(.*?)(?=\n[A-Z_ ]+:|$)"
-    match = re.search(pattern, text, re.DOTALL | re.IGNORECASE)
-
-    if match:
-        block = match.group(1)
-
-        # Handle -, •, or numbered lists
-        items = re.findall(r"(?:-|\•|\d+\.)\s*(.+)", block)
-
-        # If no bullets found, fallback to lines
-        if not items:
-            lines = [line.strip() for line in block.split("\n") if line.strip()]
-            return [l for l in lines if l.lower() != "none"]
-
-        return [i.strip() for i in items if i.strip().lower() != "none"]
-
-    return []
-
-    decision = decision_match.group(1).strip() if decision_match else "Decision Unknown"
-    confidence_value = float(confidence_match.group(1)) if confidence_match else 0.0
-        
-    sub_scores = {
-            "education_score": int(ed_match.group(1)) if ed_match else 0,
-            "income_score": int(inc_match.group(1)) if inc_match else 0,
-            "experience_score": int(exp_match.group(1)) if exp_match else 0
-        }
-
-    missing_quals = extract_list("MISSING_QUALIFICATIONS", result)
-    suggestions = extract_list("ACTIONABLE_SUGGESTIONS", result)
-    checklist = extract_list("DOCUMENT_CHECKLIST", result)
-
-    confidence_level = "High" if confidence_value >= 0.75 else "Medium" if confidence_value >= 0.4 else "Low"
-
-        # Bundle extracted results
-    st.session_state.result_data = {
+        st.session_state.result_data = {
             "decision": decision,
+            "decision_raw": decision_raw,
             "confidence_value": confidence_value,
-            "confidence_level": confidence_level,
-            "sub_scores": sub_scores,
-            "missing_quals": missing_quals,
-            "suggestions": suggestions,
-            "checklist": checklist,
+            "confidence_level": "High" if confidence_value >= 0.75 else "Medium" if confidence_value >= 0.4 else "Low",
+            "breakdown_text": extract_section("ELIGIBILITY BREAKDOWN", result),
+            "reqs_met": extract_list("REQUIREMENTS MET", result),
+            "reqs_not_met": extract_list("REQUIREMENTS NOT MET", result),
+            "risks": extract_list("RISK FACTORS", result),
+            "suggestions": extract_list("ACTIONABLE SUGGESTIONS", result),
+            "checklist": extract_list("REQUIRED DOCUMENTS", result),
+            "conclusion_text": extract_section("FINAL CONCLUSION", result),
             "source_links": list(source_links) if source_links else [],
-            "user_data": user_data,
-            "raw_result": result,
-            "context": context,
-            "prompt": prompt
+            "user_data": user_data
         }
 
-    log_decision(user_data, decision, confidence_value, confidence_level)
-    st.session_state.evaluation_done = True
-    st.session_state.page = "Eligibility Result"
-    st.rerun()
+        log_decision(user_data, decision, confidence_value, st.session_state.result_data["confidence_level"])
+        st.session_state.evaluation_done = True
+        
+        st.session_state.page = "Master Result"
+        st.rerun()
 
-# -------------------------------------------------
-# Page 2: Eligibility Result
-# -------------------------------------------------
-def page_eligibility_result():
+
+def page_master_result():
     res = st.session_state.result_data
     
-    st.title("📊 Eligibility Result")
-    st.markdown('<div class="subtitle">High-level summary of the visa eligibility assessment.</div>', unsafe_allow_html=True)
-    
-    decision_color = "#4CAF50" if "eligible" in res['decision'].lower() and "not" not in res['decision'].lower() else "#F44336" if "not eligible" in res['decision'].lower() else "#FF9800"
-    decision_icon = "✅" if "eligible" in res['decision'].lower() and "not" not in res['decision'].lower() else "❌" if "not eligible" in res['decision'].lower() else "⚠️"
+    # [A. HEADER]
+    st.markdown(f'<h1 style="color:#D4AF37 !important;">Hello, {res["user_data"]["full_name"]}</h1>', unsafe_allow_html=True)
+    st.markdown('<div class="subtitle">Here is your AI-based consolidated visa eligibility report.</div>', unsafe_allow_html=True)
 
-    # Main Card
-    st.markdown(f"""
-    <div class="custom-card" style="text-align: center; padding: 3rem;">
-        <h2 style="color: {decision_color} !important; font-size: 2.5rem; margin-bottom: 5px;">{decision_icon} {res['decision']}</h2>
-        <p style="color: #A0AEC0; font-size: 1.2rem;">Final AI Determination</p>
+    # [B. FINAL DECISION CARD] & [C. CONFIDENCE] mapped to raw strings
+    dt = res['decision'].lower()
+    if "not eligible" in dt:  badge, icon, color = "glow-badge-ineligible", "⛔", "#F44336"
+    elif "possibly" in dt: badge, icon, color = "glow-badge-warning", "⚠️", "#FF9800"
+    else: badge, icon, color = "glow-badge-eligible", "✅", "#4CAF50"
+
+    justification_match = re.search(r"\n(.+)", res['decision_raw'])
+    short_justification = justification_match.group(1) if justification_match else ""
+
+    top_card_html = f"""
+    <div class="{badge}" style="margin-bottom: 2rem;">
+        <h2 style="color: {color} !important; font-size: 3rem; margin-bottom: 5px;">{icon} {res['decision'].upper()}</h2>
+        <p style="color: rgba(255,255,255,0.85); font-size: 1.1rem; margin-bottom:0;">{short_justification}</p>
     </div>
-    """, unsafe_allow_html=True)
-
-    col1, col2 = st.columns(2)
+    """
     
-    with col1:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown(f"### 🎯 Confidence: **{res['confidence_level']}**")
+    cc1, cc2 = st.columns([1, 3])
+    with cc1:
+        st.metric(label="AI Confidence Match", value=f"{round(res['confidence_value']*100)}%")
         st.progress(res['confidence_value'])
-        st.metric("Overall Score", f"{round(res['confidence_value']*100)}%")
-        
-        sub_scores = res.get('sub_scores', {})
-        if sub_scores:
-            st.markdown("---")
-            st.markdown("#### 📈 Category Breakdown")
-            
-            edu = sub_scores.get('education_score', 0)
-            inc = sub_scores.get('income_score', 0)
-            exp = sub_scores.get('experience_score', 0)
-            
-            st.markdown(f"<div style='margin-bottom: -15px;'><small>🎓 Education Match: {edu}%</small></div>", unsafe_allow_html=True)
-            st.progress(edu / 100)
-            
-            st.markdown(f"<div style='margin-bottom: -15px;'><small>💵 Financial Requirements: {inc}%</small></div>", unsafe_allow_html=True)
-            st.progress(inc / 100)
-            
-            st.markdown(f"<div style='margin-bottom: -15px;'><small>💼 Experience Match: {exp}%</small></div>", unsafe_allow_html=True)
-            st.progress(exp / 100)
-            
-        st.markdown('</div>', unsafe_allow_html=True)
+    with cc2:
+        st.markdown(f"<p style='margin-top:10px; color:#A0AEC0;'>Confidence Band: <span style='color:{color}; font-weight:700;'>{res['confidence_level']}</span>. This assessment reflects model alignment accuracy strictly tied to official semantic vectors retrieved for {res['user_data']['country'].title()}.</p>", unsafe_allow_html=True)
 
-    with col2:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown("### 🏛️ Official Sources")
-        if res['source_links']:
-            for link in res['source_links']:
-                st.markdown(f"- 🔗 [{link}]({link})")
+    st.markdown(top_card_html, unsafe_allow_html=True)
+
+    # [D. ELIGIBILITY BREAKDOWN]
+    st.markdown("### 🔍 Evaluation Breakdown")
+    b_txt = res['breakdown_text']
+    b1, b2 = st.columns(2)
+    with b1:
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">🎓 Education Assessment</h4><p>{extract_subfield(b_txt, "Education Assessment")}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">💰 Income Assessment</h4><p>{extract_subfield(b_txt, "Income Assessment")}</p></div>', unsafe_allow_html=True)
+    with b2:
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">💼 Employment Assessment</h4><p>{extract_subfield(b_txt, "Employment Assessment")}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">🌍 Policy Match</h4><p>{extract_subfield(b_txt, "Policy Match")}</p></div>', unsafe_allow_html=True)
+
+    # [E. REQUIREMENTS SECTION]
+    st.markdown("### ⚖️ Protocol Requirements")
+    r1, r2 = st.columns(2)
+    
+    met_html = '<div class="glass-card"><h4 style="color:#4CAF50 !important; margin-top:0;">✅ Requirements Met</h4>'
+    if res['reqs_met']: 
+        for i in res['reqs_met']: met_html += f"<div style='margin-bottom:5px;'>• {i}</div>"
+    else: met_html += "<div>None explicitly confirmed.</div>"
+    met_html += '</div>'
+    
+    notmet_html = '<div class="glass-card"><h4 style="color:#F44336 !important; margin-top:0;">❌ Missing Attributes</h4>'
+    if res['reqs_not_met']:
+        for i in res['reqs_not_met']: notmet_html += f"<div style='margin-bottom:5px;'>• {i}</div>"
+    else: notmet_html += "<div>✅ *No structural missing traits identified.*</div>"
+    notmet_html += '</div>'
+    
+    r1.markdown(met_html, unsafe_allow_html=True)
+    r2.markdown(notmet_html, unsafe_allow_html=True)
+
+    # [F. RISK FACTORS & G. ACTIONABLE SUGGESTIONS]
+    sr1, sr2 = st.columns(2)
+    risk_html = '<div class="glass-card"><h4 style="color:#FF9800 !important; margin-top:0;">⚠️ Associated Risk Factors</h4>'
+    if res['risks']: 
+        for i in res['risks']: risk_html += f"<div style='margin-bottom:5px; color:#E2E8F0;'>• {i}</div>"
+    else: risk_html += "<div style='color:#A0AEC0;'>No isolated risks flagged.</div>"
+    risk_html += '</div>'
+    
+    sugg_html = '<div class="glass-card"><h4 style="color:#60A5FA !important; margin-top:0;">✨ Actionable Suggestions</h4>'
+    if res['suggestions']: 
+        for i in res['suggestions']: sugg_html += f"<div style='margin-bottom:5px; color:#E2E8F0;'>• {i}</div>"
+    else: sugg_html += "<div style='color:#A0AEC0;'>No strategic upgrades required.</div>"
+    sugg_html += '</div>'
+
+    sr1.markdown(risk_html, unsafe_allow_html=True)
+    sr2.markdown(sugg_html, unsafe_allow_html=True)
+
+    # [H. DOCUMENT CHECKLIST (GATEKEEPER)]
+    st.markdown("<br>", unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        st.markdown('<div class="checklist-marker" style="display:none;"></div>', unsafe_allow_html=True) # CSS targeted hook
+        st.markdown("<h3 style='margin-top:0; color:#D4AF37;'>📂 Official Verification Protocol</h3>", unsafe_allow_html=True)
+        st.markdown("<p style='color:#E2E8F0; font-size:1.1rem; margin-bottom:15px;'>Please confirm the following documents are ready to view your final official assessment.</p>", unsafe_allow_html=True)
+        
+        all_checked = True
+        if res.get('checklist'):
+            # Generate checkboxes linked to Session State memory to prevent screen reset
+            for i, doc in enumerate(res['checklist']):
+                c_key = f"chk_{i}"
+                if c_key not in st.session_state:
+                    st.session_state[c_key] = False
+                st.checkbox(doc, key=c_key)
+                if not st.session_state[c_key]:
+                    all_checked = False
         else:
-            st.info("No explicit source links returned.")
-        st.markdown('</div>', unsafe_allow_html=True)
+            st.info("No interactive documents were mathematically extracted.")
+
+    if not all_checked:
+        return # Soft stop, gracefully halting execution without throwing error blocks!
+
+    # [I. FINAL CONCLUSION] & [J. SOURCES] (Unlocks smoothly behind checklist)
+    conclusion_html = f"""
+    <div class="glass-card fade-in-section" style="border-left: 4px solid #D4AF37; margin-top:2rem;">
+        <h3 style="color:#D4AF37; margin-top:0;">📋 Final Conclusion Summary</h3>
+        <p style="font-size:1.15rem; color:#E2E8F0; line-height:1.6; margin-bottom:0;">{res.get('conclusion_text', 'No conclusion provided.')}</p>
+    </div>
+    """
+    
+    links_html = ""
+    if res['source_links']:
+        for link in res['source_links']: links_html += f"<div style='margin-bottom:8px;'>🔗 <a href='{link}' style='color:#60A5FA; text-decoration:none;' target='_blank'>{link}</a></div>"
+    else: links_html = "<p style='color:#A0AEC0;'>No explicit source links extracted securely by vector storage.</p>"
+
+    source_html = f"""
+    <div class="glass-card fade-in-section" style="animation-delay: 0.15s;">
+        <h3 style="margin-top:0;">🏛️ Grounding Citations (Sources)</h3>
+        {links_html}
+    </div>
+    """
+    st.markdown(conclusion_html + source_html, unsafe_allow_html=True)
+
+
+def page_ai_assistant():
+    st.title("💬 Legal & Policy Assistant")
+    st.markdown('<div class="subtitle">Ask interactive conversational queries regarding global policies.</div>', unsafe_allow_html=True)
+    
+    with st.container(border=True):
+        if "chat_history" not in st.session_state:
+            st.session_state.chat_history = [
+                {"role": "assistant", "content": "Hello! I am your SwiftVisa AI companion hooked directly into immigration rules. What can I clarify for you today?"}
+            ]
+        for msg in st.session_state.chat_history:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
 
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("🧠 View Detailed Reasoning ➔", use_container_width=True):
-        st.session_state.page = "Detailed Reasoning"
-        st.rerun()
-
-# -------------------------------------------------
-# Page 3: Detailed Reasoning
-# -------------------------------------------------
-def page_detailed_reasoning():
-    res = st.session_state.result_data
-    
-    st.title("🧠 Detailed Reasoning")
-    st.markdown('<div class="subtitle">In-depth breakdown of the AI decision based on policy documents.</div>', unsafe_allow_html=True)
-
-    with st.expander("📝 Applicant Profile Context", expanded=False):
-        st.json(res["user_data"])
-
-    col1, col2 = st.columns(2)
-    with col1:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown("### ❌ Missing Qualifications")
-        if res.get('missing_quals'):
-            for q in res['missing_quals']:
-                if q.lower() != 'none':
-                    st.markdown(f"- {q}")
-        else:
-            st.markdown("- None identified.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    with col2:
-        st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-        st.markdown("### 💡 Actionable Suggestions")
-        if res.get('suggestions'):
-            for s in res['suggestions']:
-                if s.lower() != 'none':
-                    st.markdown(f"- {s}")
-        else:
-            st.markdown("- None identified.")
-        st.markdown('</div>', unsafe_allow_html=True)
-
-    st.markdown('<div class="custom-card">', unsafe_allow_html=True)
-    st.markdown("### 📋 Required Document Checklist")
-    if res.get('checklist'):
-        for doc in res['checklist']:
-            st.checkbox(doc, value=False, key=doc)
-    else:
-        st.markdown("No specific documents generated.")
-    st.markdown('</div>', unsafe_allow_html=True)
-
-    if st.session_state.get('dev_mode', False):
-        st.markdown("---")
-        st.markdown("### 🔍 Developer Mode Debug Logs")
-        with st.expander("Raw AI JSON Output", expanded=False):
-            st.code(res.get('raw_result', ''), language="json")
-        with st.expander("Retrieved RAG FAISS Chunks", expanded=False):
-            st.markdown(res.get('context', ''))
-        with st.expander("Full Structured Prompt Sent to LLM", expanded=False):
-            st.code(res.get('prompt', ''), language="text")
-
-    if st.button("⬅️ Back to Results", use_container_width=True):
-        st.session_state.page = "Eligibility Result"
-        st.rerun()
-
-# -------------------------------------------------
-# Page 4: AI Assistant (Chat)
-# -------------------------------------------------
-def page_ai_assistant():
-    st.title("🤖 AI Visa Assistant")
-    st.markdown('<div class="subtitle">Ask any general immigration or visa-related questions here!</div>', unsafe_allow_html=True)
-    
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = [
-            {"role": "assistant", "content": "Hello! I am your AI Visa Advisor. How can I assist you with your immigration queries today?"}
-        ]
-
-    for msg in st.session_state.chat_history:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    user_input = st.chat_input("E.g., What is the minimum salary for an EU Blue Card in Germany?")
+    user_input = st.chat_input("E.g., What are the standard requirements for an EU Blue Card in Germany?")
     if user_input:
         st.session_state.chat_history.append({"role": "user", "content": user_input})
         with st.chat_message("user"):
             st.markdown(user_input)
 
         with st.chat_message("assistant"):
-            with st.spinner("Thinking..."):
-                # Basic context awareness: append the last few messages to the prompt
+            with st.spinner("Analyzing semantic rules..."):
                 conversation_context = "\\n".join([f"{m['role'].capitalize()}: {m['content']}" for m in st.session_state.chat_history[-4:]])
-                prompt = f"You are a helpful AI Visa Advisor. Answer the user's question clearly and professionally.\n\nConversation so far:\n{conversation_context}\n\nAssistant:"
-                
-                try:
-                    response = generate_response(prompt)
-                except Exception as e:
-                    response = "I'm having trouble connecting to my AI brain right now. Please check if the local server is running."
-
+                prompt = f"You are an AI Visa Advisor answering questions cleanly.\n\nContext:\n{conversation_context}\n\nAssistant:"
+                try: response = generate_response(prompt)
+                except Exception: response = "I encountered an error connecting to my contextual brain network."
                 st.markdown(response)
         
         st.session_state.chat_history.append({"role": "assistant", "content": response})
+        st.rerun()
 
 # -------------------------------------------------
-# App Router
+# Main Entry Loop
 # -------------------------------------------------
 def main():
-    sidebar_navigation()
+    top_navbar()
     
-    if st.session_state.page == "Home":
+    # Route interceptor
+    pg = st.session_state.page
+    if pg == "Home":
         page_home()
-    elif st.session_state.page == "Input Form":
+    elif pg == "Input Form":
         page_input_form()
-    elif st.session_state.page == "Eligibility Result":
-        page_eligibility_result()
-    elif st.session_state.page == "Detailed Reasoning":
-        page_detailed_reasoning()
-    elif st.session_state.page == "AI Assistant":
+    elif pg == "Master Result":
+        if not st.session_state.evaluation_done:
+            st.warning("⚠️ Invalid Access: You have no active profile setup globally initialized.")
+            st.stop()
+        page_master_result()
+    elif pg == "AI Assistant":
         page_ai_assistant()
 
 if __name__ == "__main__":

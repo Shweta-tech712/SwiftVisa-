@@ -4,6 +4,10 @@ import os
 from datetime import datetime
 import requests
 import streamlit as st
+from dotenv import load_dotenv
+
+# Load variables from .env file into the environment
+load_dotenv()
 
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -67,12 +71,19 @@ def retrieve_policy(country, visa_type):
     return context, source_links
 
 # -----------------------------
-# Generate Response (Local LM Studio)
+# Generate Response (HuggingFace Phi-3)
 # -----------------------------
 def generate_response(prompt):
-    API_URL = "http://localhost:1234/v1/chat/completions"
+    API_URL = "https://router.huggingface.co/v1/chat/completions"
+    
+    # Retrieve the token from environment variables
+    hf_token = os.getenv("HF_TOKEN", "").strip()
+
+    if not hf_token:
+        return "ERROR: HF_TOKEN environment variable is missing or empty. Please set it to a valid Hugging Face Inference token."
 
     headers = {
+        "Authorization": f"Bearer {hf_token}",
         "Content-Type": "application/json"
     }
 
@@ -81,6 +92,7 @@ def generate_response(prompt):
             API_URL,
             headers=headers,
             json={
+                "model": "meta-llama/Meta-Llama-3-8B-Instruct",
                 "messages": [
                     {"role": "system", "content": "You are a helpful immigration eligibility assessment system."},
                     {"role": "user", "content": prompt}

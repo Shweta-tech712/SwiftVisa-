@@ -9,7 +9,7 @@ load_dotenv()
 
 HF_TOKEN = os.getenv("HF_TOKEN")
 
-API_URL = "https://router.huggingface.co/hf-inference/models/mistralai/Mistral-7B-Instruct-v0.2"
+API_URL = os.getenv("HF_INFERENCE_URL", "https://api-inference.huggingface.co/models/mistralai/Mistral-7B-Instruct-v0.2")
 
 
 headers = {
@@ -57,6 +57,16 @@ def generate_eligibility(prompt):
     }
 
     response = requests.post(API_URL, headers=headers, json=payload)
+
+    if response.status_code != 200:
+        if response.status_code == 404:
+            return {
+                "error": "API ERROR (404): Not Found. Verify HF_INFERENCE_URL and model name, or check API access rights."
+            }
+        return {
+            "error": f"API ERROR ({response.status_code}): {response.text}"
+        }
+
     return response.json()
 
 
