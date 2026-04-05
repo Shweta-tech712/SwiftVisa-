@@ -42,14 +42,18 @@ def retrieve_policy(country, visa_type):
 
     query = f"{country} {visa_type}"
 
-    retrieved_docs = vectorstore.similarity_search(
-        query,
-        k=3,
-        filter={
-            "country": country.lower(),
-            "visa_type": visa_type.lower()
-        }
-    )
+    # First, try a strictly filtered similarity search
+    try:
+        retrieved_docs = vectorstore.similarity_search(
+            query,
+            k=3,
+            filter={
+                "country": country.lower(),
+                "visa_type": visa_type.lower()
+            }
+        )
+    except Exception:
+        retrieved_docs = []
 
     source_links = set()
     filtered_docs = []
@@ -60,7 +64,14 @@ def retrieve_policy(country, visa_type):
 
         if doc_country == country.lower() and doc_visa == visa_type.lower():
             filtered_docs.append(doc)
+            if "official_source" in doc.metadata:
+                source_links.add(doc.metadata["official_source"])
 
+    # Fallback to pure semantic search if strict metadata filtering isolates zero exact matches
+    if not filtered_docs:
+        retrieved_docs = vectorstore.similarity_search(query, k=3)
+        for doc in retrieved_docs:
+            filtered_docs.append(doc)
             if "official_source" in doc.metadata:
                 source_links.add(doc.metadata["official_source"])
 
@@ -152,6 +163,8 @@ if __name__ == "__main__":
     print("=== Visa Eligibility Screening System ===\n")
 
     age = input("Enter Age: ")
+    dob = input("Enter Date of Birth (YYYY-MM-DD): ")
+    sex = input("Enter Sex (Male/Female/Other): ")
     nationality = input("Enter Nationality: ")
     education = input("Enter Education Level: ")
     employment = input("Enter Employment Status: ")
@@ -161,6 +174,8 @@ if __name__ == "__main__":
 
     user_data = {
         "age": age,
+        "dob": dob,
+        "sex": sex,
         "nationality": nationality,
         "education": education,
         "employment": employment,
@@ -178,18 +193,15 @@ if __name__ == "__main__":
     else:
 
         prompt = f"""
-You are an immigration eligibility assessment system.
+You are an expert immigration eligibility officer.
 
-Based ONLY on the provided policy context, evaluate the applicant.
+Evaluate the applicant STRICTLY using the provided policy context.
 
-Return output in this format:
-
-Decision: Eligible / Possibly Eligible / Not Eligible
-Confidence: 0 to 1
-Reasoning: Explain clearly
-
-User Profile:
+----------------------------------------
+USER PROFILE:
 Age: {age}
+Date of Birth: {dob}
+Sex: {sex}
 Nationality: {nationality}
 Education: {education}
 Employment: {employment}
@@ -197,8 +209,84 @@ Income: {income}
 Country: {country}
 Visa Type: {visa_type}
 
-Policy Context:
+----------------------------------------
+POLICY CONTEXT:
 {context}
+
+----------------------------------------
+
+IMPORTANT CONTEXT RULES:
+- Date of Birth is valid only if between year 1950 and today.
+- Sex must be one of: Male, Female, Other.
+- If any of these inputs are missing or invalid, clearly state "Not sufficient information" in reasoning.
+- Do NOT ignore missing or placeholder values.
+
+----------------------------------------
+
+Return output STRICTLY in this format:
+
+Decision: <Eligible / Possibly Eligible / Not Eligible>
+
+Confidence: <0 to 1 score>
+
+Key Findings:
+- <clear meaningful point>
+- <clear meaningful point>
+- <clear meaningful point>
+
+Requirements Met:
+- <specific requirement satisfied>
+- <specific requirement satisfied>
+
+Requirements Not Met:
+- <specific missing requirement OR "None">
+
+----------------------------------------
+
+Evaluation Breakdown:
+
+Education Assessment:
+- Write a complete sentence explaining match or mismatch.
+
+Employment Assessment:
+- Write a complete sentence explaining alignment.
+
+Income Assessment:
+- Clearly state if income meets requirement.
+
+Policy Match:
+- Explain overall alignment with visa rules.
+
+----------------------------------------
+
+Risk Factors:
+- Only mention REAL risks if they exist.
+- If none, write exactly: None
+
+Actionable Suggestions:
+- Provide improvements ONLY if needed.
+- If not needed, write exactly: None
+
+Required Documents:
+- Always include at least:
+  - Passport
+  - Educational Certificates
+  - Employment Proof
+  - Financial Proof
+
+----------------------------------------
+
+Final Assessment:
+- Provide a clear and professional conclusion.
+
+----------------------------------------
+
+STRICT RULES:
+- NEVER leave any section empty
+- NEVER use placeholders like "--------"
+- ALWAYS produce meaningful content
+- If input is invalid or missing, explicitly mention it
+- Output must be clean and structured
 """
 
         result = generate_response(prompt)

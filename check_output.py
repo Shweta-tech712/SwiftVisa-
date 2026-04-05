@@ -21,9 +21,9 @@ if __name__ == "__main__":
     print("Loading vector store...\n")
     vectorstore = load_vector_store()
 
-    # Simulated structured user input
-    country = "Germany"
-    visa_type = "Student"
+    # Simulated structured user input (must match metadata case/format in vector store)
+    country = "germany"
+    visa_type = "student visa"
 
     query = "What are the financial requirements?"
     print(f"Query: {query}")

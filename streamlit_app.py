@@ -65,9 +65,14 @@ def extract_list(header, text):
     return []
 
 def extract_subfield(section_text, field_name):
-    pattern = rf"-\s*{field_name}[:\s]*(.*?)(?=\n-\s*[A-Za-z]|$)"
+    pattern = rf"(?:-\s*)?{field_name}[:\s]+(.*?)(?=\n(?:-\s*)?[A-Za-z ]+[:\s]|$)"
     match = re.search(pattern, section_text, re.DOTALL | re.IGNORECASE)
-    return match.group(1).strip() if match else "Not explicitly detailed."
+    if match:
+        val = match.group(1).strip()
+        if val.startswith('-'):
+            val = val[1:].strip()
+        return val
+    return "Not explicitly detailed."
 
 # -------------------------------------------------
 # Premium Theming (Glassmorphism & Navbar Core)
@@ -312,6 +317,12 @@ def page_input_form():
             age = st.number_input("📅 Age", min_value=16, max_value=80, step=1)
         with colP3:
             nationality = st.text_input("🌍 Nationality", placeholder="e.g. Indian")
+            
+        colP4, colP5 = st.columns(2, gap="medium")
+        with colP4:
+            dob = st.date_input("🎂 Date of Birth")
+        with colP5:
+            sex = st.selectbox("⚤ Sex", ["Male", "Female", "Other"])
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -362,7 +373,7 @@ def page_input_form():
             return
 
         user_data = {
-            "full_name": full_name, "age": age, "nationality": nationality, 
+            "full_name": full_name, "age": age, "dob": dob.strftime("%Y-%m-%d"), "sex": sex, "nationality": nationality, 
             "education": education, "field_study": field_study,
             "employment": employment, "experience": experience,
             "income": income, "country": country.lower(), "visa_type": visa_type.lower()
@@ -376,15 +387,16 @@ def page_input_form():
             return
 
         prompt = f"""
-You are a professional immigration eligibility officer.
+You are an expert immigration eligibility officer.
 
-Your task is to evaluate a visa applicant strictly based on the provided policy context. 
-Do NOT assume any missing information. Base all reasoning only on the given data.
+Evaluate the applicant STRICTLY using the provided policy context.
 
----------------------------------------
-APPLICANT DETAILS:
+----------------------------------------
+USER PROFILE:
 Name: {full_name}
 Age: {age}
+Date of Birth: {dob.strftime("%Y-%m-%d")}
+Sex: {sex}
 Nationality: {nationality}
 Education: {education}
 Field of Study: {field_study}
@@ -392,73 +404,96 @@ Employment: {employment} ({experience} years of experience)
 Income: {income}
 Country: {country}
 Visa Type: {visa_type}
----------------------------------------
 
+----------------------------------------
 POLICY CONTEXT:
 {context}
 
----------------------------------------
-OUTPUT FORMAT (STRICT):
----------------------------------------
+----------------------------------------
 
-1. FINAL DECISION:
-<Eligible / Possibly Eligible / Not Eligible>
-<Provide a 1-line justification>
+IMPORTANT CONTEXT RULES:
+- Date of Birth is valid only if between year 1950 and today.
+- Sex must be one of: Male, Female, Other.
+- If any of these inputs are missing or invalid, clearly state "Not sufficient information" in reasoning.
+- Do NOT ignore missing or placeholder values.
 
-2. CONFIDENCE SCORE:
-<Provide a score between 0 and 1>
-<Explain clearly why this confidence level is assigned>
+----------------------------------------
 
-3. APPLICANT PROFILE SUMMARY:
-- Age: {age}
-- Education: {education} in {field_study}
-- Employment: {employment} (Experience: {experience} years)
-- Income: {income}
-- Country: {country}
-- Visa Type: {visa_type}
+Return output STRICTLY in this format:
 
-4. ELIGIBILITY BREAKDOWN:
+Decision: <Eligible / Possibly Eligible / Not Eligible>
 
-- Education Assessment:
-Evaluate if the degree meets visa requirements.
+Confidence: <0 to 1 score>
 
-- Employment Assessment:
-Check if the job role aligns with visa criteria.
+Key Findings:
+- <clear meaningful point>
+- <clear meaningful point>
+- <clear meaningful point>
 
-- Income Assessment:
-Compare income with minimum threshold.
+Requirements Met:
+- <specific requirement satisfied>
+- <specific requirement satisfied>
 
-- Policy Match:
-Explain how the applicant aligns with official visa rules.
+Requirements Not Met:
+- <specific missing requirement OR "None">
 
-5. REQUIREMENTS MET:
-- List all satisfied conditions
+----------------------------------------
 
-6. REQUIREMENTS NOT MET:
-- List missing or unclear requirements
-- If none, write "None"
+Evaluation Breakdown:
 
-7. RISK FACTORS:
-- Highlight uncertainties or borderline conditions
+Education Assessment:
+- Write a complete sentence explaining match or mismatch.
 
-8. ACTIONABLE SUGGESTIONS:
-- Provide clear next steps to improve eligibility
+Employment Assessment:
+- Write a complete sentence explaining alignment.
 
-9. REQUIRED DOCUMENTS:
-- List all necessary documents based on this case
+Income Assessment:
+- Clearly state if income meets requirement.
 
-10. FINAL CONCLUSION:
-Provide a professional 2–3 line summary of the applicant’s eligibility.
+Policy Match:
+- Explain overall alignment with visa rules.
+
+----------------------------------------
+
+Risk Factors:
+- Only mention REAL risks if they exist.
+- If none, write exactly: None
+
+Actionable Suggestions:
+- Provide improvements ONLY if needed.
+- If not needed, write exactly: None
+
+Required Documents:
+- Always include at least:
+  - Passport
+  - Educational Certificates
+  - Employment Proof
+  - Financial Proof
+
+----------------------------------------
+
+Final Assessment:
+- Provide a clear and professional conclusion.
+
+----------------------------------------
+
+STRICT RULES:
+- NEVER leave any section empty
+- NEVER use placeholders like "--------"
+- ALWAYS produce meaningful content
+- If input is invalid or missing, explicitly mention it
+- Output must be clean and structured
 """
         with st.spinner(f"🧠 Computing Master Reasoning Tree for {full_name}..."):
             result = generate_response(prompt)
+            result = re.sub(r"-{4,}", "", result)
 
-        decision_raw = extract_section("FINAL DECISION", result)
+        decision_raw = extract_section("Decision", result)
         if "not eligible" in decision_raw.lower(): decision = "Not Eligible"
         elif "possibly eligible" in decision_raw.lower(): decision = "Possibly Eligible"
         else: decision = "Eligible"
         
-        conf_match = re.search(r"([0-9.]+)", extract_section("CONFIDENCE SCORE", result))
+        conf_match = re.search(r"([0-9.]+)", extract_section("Confidence", result))
         try: confidence_value = float(conf_match.group(1)) if conf_match else 0.5
         except ValueError: confidence_value = 0.5
 
@@ -467,13 +502,16 @@ Provide a professional 2–3 line summary of the applicant’s eligibility.
             "decision_raw": decision_raw,
             "confidence_value": confidence_value,
             "confidence_level": "High" if confidence_value >= 0.75 else "Medium" if confidence_value >= 0.4 else "Low",
-            "breakdown_text": extract_section("ELIGIBILITY BREAKDOWN", result),
-            "reqs_met": extract_list("REQUIREMENTS MET", result),
-            "reqs_not_met": extract_list("REQUIREMENTS NOT MET", result),
-            "risks": extract_list("RISK FACTORS", result),
-            "suggestions": extract_list("ACTIONABLE SUGGESTIONS", result),
-            "checklist": extract_list("REQUIRED DOCUMENTS", result),
-            "conclusion_text": extract_section("FINAL CONCLUSION", result),
+            "edu_text": extract_subfield(result, "Education Assessment"),
+            "emp_text": extract_subfield(result, "Employment Assessment"),
+            "inc_text": extract_subfield(result, "Income Assessment"),
+            "pol_text": extract_subfield(result, "Policy Match"),
+            "reqs_met": extract_list("Requirements Met", result),
+            "reqs_not_met": extract_list("Requirements Not Met", result),
+            "risks": extract_list("Risk Factors", result),
+            "suggestions": extract_list("Actionable Suggestions", result),
+            "checklist": extract_list("Required Documents", result),
+            "conclusion_text": extract_section("Final Assessment", result),
             "source_links": list(source_links) if source_links else [],
             "user_data": user_data
         }
@@ -519,14 +557,13 @@ def page_master_result():
 
     # [D. ELIGIBILITY BREAKDOWN]
     st.markdown("### 🔍 Evaluation Breakdown")
-    b_txt = res['breakdown_text']
     b1, b2 = st.columns(2)
     with b1:
-        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">🎓 Education Assessment</h4><p>{extract_subfield(b_txt, "Education Assessment")}</p></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">💰 Income Assessment</h4><p>{extract_subfield(b_txt, "Income Assessment")}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">🎓 Education Assessment</h4><p>{res.get("edu_text", "Not explicitly detailed.")}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">💰 Income Assessment</h4><p>{res.get("inc_text", "Not explicitly detailed.")}</p></div>', unsafe_allow_html=True)
     with b2:
-        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">💼 Employment Assessment</h4><p>{extract_subfield(b_txt, "Employment Assessment")}</p></div>', unsafe_allow_html=True)
-        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">🌍 Policy Match</h4><p>{extract_subfield(b_txt, "Policy Match")}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">💼 Employment Assessment</h4><p>{res.get("emp_text", "Not explicitly detailed.")}</p></div>', unsafe_allow_html=True)
+        st.markdown(f'<div class="glass-card"><h4 style="margin-top:0;">🌍 Policy Match</h4><p>{res.get("pol_text", "Not explicitly detailed.")}</p></div>', unsafe_allow_html=True)
 
     # [E. REQUIREMENTS SECTION]
     st.markdown("### ⚖️ Protocol Requirements")
