@@ -318,11 +318,10 @@ def page_input_form():
         with colP3:
             nationality = st.text_input("🌍 Nationality", placeholder="e.g. Indian")
             
-        colP4, colP5 = st.columns(2, gap="medium")
+        colP4 = st.columns(1)[0]
         with colP4:
-            dob = st.date_input("🎂 Date of Birth")
-        with colP5:
-            sex = st.selectbox("⚤ Sex", ["Male", "Female", "Other"])
+            # We removed dob/sex but kept the layout clean
+            pass
 
         st.markdown("<hr>", unsafe_allow_html=True)
 
@@ -373,7 +372,7 @@ def page_input_form():
             return
 
         user_data = {
-            "full_name": full_name, "age": age, "dob": dob.strftime("%Y-%m-%d"), "sex": sex, "nationality": nationality, 
+            "full_name": full_name, "age": age, "nationality": nationality, 
             "education": education, "field_study": field_study,
             "employment": employment, "experience": experience,
             "income": income, "country": country.lower(), "visa_type": visa_type.lower()
@@ -395,8 +394,6 @@ Evaluate the applicant STRICTLY using the provided policy context.
 USER PROFILE:
 Name: {full_name}
 Age: {age}
-Date of Birth: {dob.strftime("%Y-%m-%d")}
-Sex: {sex}
 Nationality: {nationality}
 Education: {education}
 Field of Study: {field_study}
@@ -412,10 +409,9 @@ POLICY CONTEXT:
 ----------------------------------------
 
 IMPORTANT CONTEXT RULES:
-- Date of Birth is valid only if between year 1950 and today.
-- Sex must be one of: Male, Female, Other.
 - If any of these inputs are missing or invalid, clearly state "Not sufficient information" in reasoning.
 - Do NOT ignore missing or placeholder values.
+- Focus strictly on the provided policy context for eligibility logic.
 
 ----------------------------------------
 
@@ -435,7 +431,7 @@ Requirements Met:
 - <specific requirement satisfied>
 
 Requirements Not Met:
-- <specific missing requirement OR "None">
+- <Identify any specific missing attributes or gaps in the profile relative to the policy. If the profile is complete, explain why it meets all structural policy requirements.>
 
 ----------------------------------------
 
@@ -456,12 +452,10 @@ Policy Match:
 ----------------------------------------
 
 Risk Factors:
-- Only mention REAL risks if they exist.
-- If none, write exactly: None
+- <Describe any potential risks associated with the applicant's profile based on the policy context. If no risks are found, summarize the key strengths of the profile instead of using generic phrases.>
 
 Actionable Suggestions:
-- Provide improvements ONLY if needed.
-- If not needed, write exactly: None
+- <Provide tailored recommendations to improve the profile's eligibility. If the profile is already optimal, suggest the next practical steps in the application process.>
 
 Required Documents:
 - Always include at least:
@@ -578,7 +572,7 @@ def page_master_result():
     notmet_html = '<div class="glass-card"><h4 style="color:#F44336 !important; margin-top:0;">❌ Missing Attributes</h4>'
     if res['reqs_not_met']:
         for i in res['reqs_not_met']: notmet_html += f"<div style='margin-bottom:5px;'>• {i}</div>"
-    else: notmet_html += "<div>✅ *No structural missing traits identified.*</div>"
+    else: notmet_html += "<div>✅ *The applicant profile aligns well with all structural policy requirements.*</div>"
     notmet_html += '</div>'
     
     r1.markdown(met_html, unsafe_allow_html=True)
@@ -589,13 +583,13 @@ def page_master_result():
     risk_html = '<div class="glass-card"><h4 style="color:#FF9800 !important; margin-top:0;">⚠️ Associated Risk Factors</h4>'
     if res['risks']: 
         for i in res['risks']: risk_html += f"<div style='margin-bottom:5px; color:#E2E8F0;'>• {i}</div>"
-    else: risk_html += "<div style='color:#A0AEC0;'>No isolated risks flagged.</div>"
+    else: risk_html += "<div style='color:#A0AEC0;'>The applicant profile aligns well with all structural policy requirements.</div>"
     risk_html += '</div>'
     
     sugg_html = '<div class="glass-card"><h4 style="color:#60A5FA !important; margin-top:0;">✨ Actionable Suggestions</h4>'
     if res['suggestions']: 
         for i in res['suggestions']: sugg_html += f"<div style='margin-bottom:5px; color:#E2E8F0;'>• {i}</div>"
-    else: sugg_html += "<div style='color:#A0AEC0;'>No strategic upgrades required.</div>"
+    else: sugg_html += "<div style='color:#A0AEC0;'>The applicant profile aligns well with all structural policy requirements.</div>"
     sugg_html += '</div>'
 
     sr1.markdown(risk_html, unsafe_allow_html=True)

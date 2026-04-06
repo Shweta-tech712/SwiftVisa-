@@ -163,8 +163,6 @@ if __name__ == "__main__":
     print("=== Visa Eligibility Screening System ===\n")
 
     age = input("Enter Age: ")
-    dob = input("Enter Date of Birth (YYYY-MM-DD): ")
-    sex = input("Enter Sex (Male/Female/Other): ")
     nationality = input("Enter Nationality: ")
     education = input("Enter Education Level: ")
     employment = input("Enter Employment Status: ")
@@ -174,8 +172,6 @@ if __name__ == "__main__":
 
     user_data = {
         "age": age,
-        "dob": dob,
-        "sex": sex,
         "nationality": nationality,
         "education": education,
         "employment": employment,
@@ -200,8 +196,6 @@ Evaluate the applicant STRICTLY using the provided policy context.
 ----------------------------------------
 USER PROFILE:
 Age: {age}
-Date of Birth: {dob}
-Sex: {sex}
 Nationality: {nationality}
 Education: {education}
 Employment: {employment}
@@ -216,10 +210,9 @@ POLICY CONTEXT:
 ----------------------------------------
 
 IMPORTANT CONTEXT RULES:
-- Date of Birth is valid only if between year 1950 and today.
-- Sex must be one of: Male, Female, Other.
 - If any of these inputs are missing or invalid, clearly state "Not sufficient information" in reasoning.
 - Do NOT ignore missing or placeholder values.
+- Focus strictly on the provided policy context for eligibility logic.
 
 ----------------------------------------
 
@@ -239,7 +232,7 @@ Requirements Met:
 - <specific requirement satisfied>
 
 Requirements Not Met:
-- <specific missing requirement OR "None">
+- <Identify any specific missing attributes or gaps in the profile relative to the policy. If the profile is complete, explain why it meets all structural policy requirements.>
 
 ----------------------------------------
 
@@ -260,12 +253,10 @@ Policy Match:
 ----------------------------------------
 
 Risk Factors:
-- Only mention REAL risks if they exist.
-- If none, write exactly: None
+- <Describe any potential risks associated with the applicant's profile based on the policy context. If no risks are found, summarize the key strengths of the profile instead of using generic phrases.>
 
 Actionable Suggestions:
-- Provide improvements ONLY if needed.
-- If not needed, write exactly: None
+- <Provide tailored recommendations to improve the profile's eligibility. If the profile is already optimal, suggest the next practical steps in the application process.>
 
 Required Documents:
 - Always include at least:
